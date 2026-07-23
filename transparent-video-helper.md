@@ -63,6 +63,53 @@ ffmpeg -y -i key.mp4 -c:v libx264 -crf 28 -preset slow -pix_fmt yuv420p -movflag
 
 ---
 
+## ffmpeg — конвертація MP4 → MOV / WEBM / WebP
+
+> **Важливо:** якщо вхідний MP4 **непрозорий**, конвертація сама по собі прозорість не додасть — вийде той самий непрозорий контент в іншому контейнері. Щоб отримати alpha, потрібна маска (див. наступний розділ) або вихідник, у якому alpha вже є.
+
+### MP4 → MOV (HEVC, для Safari)
+```bash
+# with alpha (source must already have transparency)
+ffmpeg -y -i input.mp4 -c:v hevc_videotoolbox -alpha_quality 0.75 -pix_fmt bgra -tag:v hvc1 -q:v 65 -an output.mov
+```
+```bash
+# without alpha (simple repack to MOV)
+ffmpeg -y -i input.mp4 -c:v hevc_videotoolbox -pix_fmt yuv420p -tag:v hvc1 -q:v 65 -an output.mov
+```
+```bash
+# fastest: no re-encode, just change container (keeps original quality)
+ffmpeg -y -i input.mp4 -c copy output.mov
+```
+
+### MP4 → WEBM (VP9, для Chrome/Firefox)
+```bash
+# with alpha (source must already have transparency)
+ffmpeg -y -i input.mp4 -c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -crf 32 -b:v 0 -an output.webm
+```
+```bash
+# without alpha, good compression
+ffmpeg -y -i input.mp4 -c:v libvpx-vp9 -pix_fmt yuv420p -crf 32 -b:v 0 -row-mt 1 -an output.webm
+```
+
+`-row-mt 1` вмикає багатопотокове кодування — VP9 інакше рахує дуже довго.
+
+### MP4 → WebP (анімований)
+Формат для коротких лупів замість GIF: менша вага, підтримує прозорість.
+
+```bash
+# animated WebP loop, scaled down to 800px wide
+ffmpeg -y -i input.mp4 -vf "fps=20,scale=800:-1:flags=lanczos" -c:v libwebp -lossless 0 -q:v 70 -loop 0 -an output.webp
+```
+
+- `-loop 0` — нескінченний цикл
+- `-q:v` — якість 0–100 (більше = краще, на відміну від `-crf`)
+- `-lossless 1` — без втрат, якщо потрібен ідеальний край прозорості (файл важчий)
+- `fps=20` + `scale` — обов'язково зменшуй, інакше WebP розпухне; підходить лише для коротких роликів (2–5 с)
+
+> Для довгих або великих відео WebP не варіант — бери WEBM/MOV.
+
+---
+
 ## ffmpeg — вирізати відео по формі з Figma
 
 Figma **не експортує відео** — тільки статичний poster-кадр. Тому маску накладаємо вручну через ffmpeg АБО через CSS (див. останній розділ — для вебу зазвичай краще CSS).
